@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin Address Decoder, Hash Generator, and Signature Identifier</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        input, button, textarea {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        #result, #hashResult, #signatureResult {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bitcoin Address Decoder, Hash Generator, and Signature Identifier</h1>
+    <input type="text" id="address" placeholder="Enter Bitcoin address or text to hash">
+    <button onclick="processInput()">Process Address/Hash</button>
+    <div id="result"></div>
+    <div id="hashResult"></div>
+
+    <h2>Message Signature Identifier</h2>
+    <textarea id="message" placeholder="Enter message to sign" rows="4"></textarea>
+    <input type="text" id="signingAddress" placeholder="Enter Bitcoin address for signing">
+    <button onclick="identifySignature()">Identify Signature Type</button>
+    <div id="signatureResult"></div>
+
+    <script>
+        function processInput() {
+            const input = document.getElementById('address').value;
+            let decodedResult = 'Unable to decode as a Bitcoin address.';
+            
+            if (input.startsWith('1') || input.startsWith('3') || input.startsWith('bc1') || 
+                input.startsWith('xpub') || input.startsWith('ypub') || input.startsWith('zpub')) {
+                decodedResult = `Detected Bitcoin address type: ${detectAddressType(input)}\n`;
+                decodedResult += `We cannot fully decode the address structure without additional libraries, `;
+                decodedResult += `but here's what we can say about the address:\n`;
+                decodedResult += `Address: ${input}\n`;
+                decodedResult += `Length: ${input.length} characters`;
+            }
+            
+            document.getElementById('result').textContent = decodedResult;
+            
+            // Generate hashes
+            const hashes = generateHashes(input);
+            document.getElementById('hashResult').textContent = hashes;
+        }
+
+        function detectAddressType(address) {
+            if (address.startsWith('1')) return 'P2PKH (Legacy)';
+            if (address.startsWith('3')) return 'P2SH';
+            if (address.startsWith('bc1q')) return 'P2WPKH (Bech32)';
+            if (address.startsWith('bc1p')) return 'P2TR (Taproot)';
+            if (address.startsWith('xpub')) return 'BIP32 Extended Public Key (Bitcoin Mainnet)';
+            if (address.startsWith('ypub')) return 'BIP49 Extended Public Key (P2SH-P2WPKH)';
+            if (address.startsWith('zpub')) return 'BIP84 Extended Public Key (P2WPKH)';
+            return 'Unknown';
+        }
+
+        function generateHashes(input) {
+            const hashTypes = ['MD5', 'SHA1', 'SHA256', 'SHA512', 'RIPEMD160'];
+            let result = 'Hash values:\n\n';
+
+            hashTypes.forEach(type => {
+                const hash = CryptoJS[type](input).toString();
+                result += `${type}: ${hash}\n\n`;
+            });
+
+            result += `ROT13: ${rot13(input)}\n\n`;
+
+            return result;
+        }
+
+        function rot13(str) {
+            return str.replace(/[a-zA-Z]/g, function(chr) {
+                var start = chr <= 'Z' ? 65 : 97;
+                return String.fromCharCode(start + (chr.charCodeAt(0) - start + 13) % 26);
+            });
+        }
+
+        function identifySignature() {
+            const message = document.getElementById('message').value;
+            const signingAddress = document.getElementById('signingAddress').value;
+            let signatureInfo = '';
+
+            if (!message || !signingAddress) {
+                signatureInfo = 'Please enter both a message and a signing address.';
+            } else {
+                const addressType = detectAddressType(signingAddress);
+                signatureInfo = `For the address type "${addressType}", the signature required would be:\n\n`;
+
+                switch (addressType) {
+                    case 'P2PKH (Legacy)':
+                        signatureInfo += 'ECDSA signature over the double SHA256 hash of the message.\n';
+                        signatureInfo += 'Verification would use the public key extracted from the P2PKH address.';
+                        break;
+                    case 'P2SH':
+                        signatureInfo += 'Depends on the specific script, but typically:\n';
+                        signatureInfo += 'ECDSA signature if it\'s a P2SH-wrapped P2WPKH,\n';
+                        signatureInfo += 'or multiple signatures for multisig P2SH addresses.';
+                        break;
+                    case 'P2WPKH (Bech32)':
+                        signatureInfo += 'ECDSA signature, similar to P2PKH, but following Segregated Witness rules.\n';
+                        signatureInfo += 'The public key is directly extracted from the Bech32 address.';
+                        break;
+                    case 'P2TR (Taproot)':
+                        signatureInfo += 'Schnorr signature over the tagged hash of the message.\n';
+                        signatureInfo += 'Taproot uses more efficient and privacy-preserving Schnorr signatures.';
+                        break;
+                    default:
+                        signatureInfo += 'Unable to determine the exact signature type for this address format.\n';
+                        signatureInfo += 'Extended public keys (xpub, ypub, zpub) are not typically used for direct signing.';
+                }
+
+                signatureInfo += '\n\nNote: Actual message signing and verification require private keys and specialized Bitcoin libraries.';
+            }
+
+            document.getElementById('signatureResult').textContent = signatureInfo;
+        }
+    </script>
+</body>
+</html>
